@@ -60,6 +60,9 @@ cargo test
 # Lint (must be clean)
 cargo clippy --all-targets -- -D warnings
 
+# Check that README contract-function signatures match lib.rs
+make check-api
+
 # Build the wasm artifact
 make build
 
@@ -174,6 +177,8 @@ CI runs `python3 scripts/check_readme_api.py`, which fails if a documented
 `name(...)` call has a different number of arguments than the matching
 `pub fn` in `lib.rs`. It only warns about public functions the README does
 not mention yet.
+
+Run `make check-api` from `contracts/sorobanlard/` to run the same check locally.
 
 ## Dependency advisories
 

@@ -21,7 +21,8 @@ ROOT = Path(__file__).resolve().parent.parent
 LIB_RS = ROOT / "contracts" / "sorobanlard" / "src" / "lib.rs"
 README = ROOT / "README.md"
 
-PUB_FN_RE = re.compile(r"^    pub fn ([a-z_][a-z0-9_]*)\(")
+CONTRACT_IMPL_RE = re.compile(r"^(?P<indent> *)impl SorobanLardContract\s*\{")
+PUB_FN_RE = re.compile(r"^(?P<indent> *)pub fn ([a-z_][a-z0-9_]*)\(")
 
 
 def public_functions(source):
@@ -29,27 +30,48 @@ def public_functions(source):
     functions = {}
     lines = source.splitlines()
     index = 0
+    depth = 0
+    contract_impl_depth = None
+    contract_impl_indent = None
+    inside_contract_impl = False
     while index < len(lines):
-        match = PUB_FN_RE.match(lines[index])
-        if not match:
-            index += 1
-            continue
+        line = lines[index]
+        impl_match = CONTRACT_IMPL_RE.match(line)
+        if impl_match and contract_impl_depth is None:
+            contract_impl_depth = depth + 1
+            contract_impl_indent = len(impl_match.group("indent")) + 4
+            inside_contract_impl = True
 
-        name = match.group(1)
-        header = []
-        cursor = index
-        while True:
-            header.append(lines[cursor])
-            if lines[cursor].rstrip().endswith("{"):
-                break
-            cursor += 1
-        signature = " ".join(header)
-        params = signature[signature.index("(") + 1 : signature.rindex(")")]
+        match = PUB_FN_RE.match(line)
+        if (
+            match
+            and inside_contract_impl
+            and depth == contract_impl_depth
+            and len(match.group("indent")) == contract_impl_indent
+        ):
+            name = match.group(2)
+            header = []
+            cursor = index
+            while cursor < len(lines):
+                header.append(lines[cursor])
+                if lines[cursor].rstrip().endswith("{"):
+                    break
+                cursor += 1
+            signature = " ".join(header)
+            params = signature[signature.index("(") + 1 : signature.rindex(")")]
 
-        names = [p.split(":")[0].strip() for p in split_top_level(params) if p.strip()]
-        names = [n for n in names if n.lstrip("&") != "env"]
-        functions[name] = len(names)
-        index = cursor + 1
+            names = [
+                p.split(":")[0].strip()
+                for p in split_top_level(params)
+                if p.strip()
+            ]
+            names = [n for n in names if n.lstrip("&") != "env"]
+            functions[name] = len(names)
+
+        depth += line.count("{") - line.count("}")
+        if contract_impl_depth is not None and depth < contract_impl_depth:
+            inside_contract_impl = False
+        index += 1
     return functions
 
 

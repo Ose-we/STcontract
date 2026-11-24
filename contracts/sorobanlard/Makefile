@@ -27,7 +27,7 @@ CONTRACT_NAME = sorobanlard
 WASM_PATH     = target/wasm32v1-none/release/$(CONTRACT_NAME).wasm
 WASM_OPT      = target/wasm32v1-none/release/$(CONTRACT_NAME).optimized.wasm
 
-.PHONY: test build optimize deploy-testnet clean fmt check
+.PHONY: test build optimize deploy-testnet clean fmt check check-api
 
 # Run the contract's Rust test suite via `cargo test`.
 test:
@@ -63,6 +63,10 @@ fmt:
 # Type-check the crate with `cargo check` (no codegen).
 check:
 	cargo check
+
+# Check that README contract-function signatures match lib.rs.
+check-api:
+	python3 $(CURDIR)/../../scripts/check_readme_api.py
 
 # Remove build artifacts with `cargo clean`.
 clean:

@@ -4521,6 +4521,51 @@ fn test_re_enroll_after_completion_succeeds() {
 }
 
 #[test]
+fn test_re_enroll_history_preserves_original_payment_split() {
+    let (env, contract_id, token_id, admin, _sec_admin, treasury, instructor) = setup();
+    let client = SorobanLardContractClient::new(&env, &contract_id);
+    let token_client = token::Client::new(&env, &token_id);
+
+    let student = Address::generate(&env);
+    token::StellarAssetClient::new(&env, &token_id).mint(&student, &10_000_000_000);
+
+    let price: i128 = 500_000_000;
+    register_and_approve_course(
+        &env,
+        &client,
+        &token_id,
+        &admin,
+        &instructor,
+        "COURSE-REENROLL-PAYMENT-HISTORY",
+        price,
+    );
+    let course_id = String::from_str(&env, "COURSE-REENROLL-PAYMENT-HISTORY");
+
+    let treasury_before = token_client.balance(&treasury);
+    let contract_before = token_client.balance(&contract_id);
+    let earnings_before = client.get_instructor_earnings(&instructor, &token_id);
+
+    client.enroll(&student, &course_id);
+
+    let treasury_after_first = token_client.balance(&treasury);
+    let contract_after_first = token_client.balance(&contract_id);
+    let earnings_after_first = client.get_instructor_earnings(&instructor, &token_id);
+    let platform_transferred = treasury_after_first - treasury_before;
+    let instructor_credited = earnings_after_first - earnings_before;
+    assert_eq!(contract_after_first - contract_before, instructor_credited);
+
+    client.mark_completed(&admin, &student, &course_id, &None);
+    client.re_enroll(&student, &course_id);
+
+    let history = client.get_enrollment_history(&student, &student, &course_id);
+    assert_eq!(history.len(), 1);
+    let archived = history.get(0).unwrap();
+    assert_eq!(archived.platform_amount, platform_transferred);
+    assert_eq!(archived.instructor_amount, instructor_credited);
+    assert_eq!(archived.platform_amount + archived.instructor_amount, price);
+}
+
+#[test]
 fn test_re_enroll_archives_original_completion_and_certificate() {
     let (env, contract_id, token_id, admin, _sec_admin, _treasury, instructor) = setup();
     let client = SorobanLardContractClient::new(&env, &contract_id);
